@@ -1,0 +1,203 @@
+import os
+import time
+import platform
+import math
+
+# Try to enable ANSI colors on Windows
+try:
+    import colorama
+    colorama.init()
+except Exception:
+    # colorama is not required, works fine in Unix terminals
+    pass
+
+# ANSI color codes
+MAGENTA = "\033[95m"  # bright magenta
+BOLD = "\033[1m"
+RESET = "\033[0m"
+DIM = "\033[2m"
+
+
+def clear():
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+
+def centered(text, width):
+    text = str(text)
+    if len(text) >= width:
+        return text
+    pad = (width - len(text)) // 2
+    return " " * pad + text + " " * (width - len(text) - pad)
+
+
+def print_header():
+    # Header size
+    width = 50
+    clear()
+    print("#" * width)
+    print("#" + centered("PYTERMINAL SYSTEM v1.0", width - 2) + "#")
+    print("#" * width)
+    print()
+    print("   OS:  ", platform.system(), platform.release())
+    print("   CPU: Custom Intel MatrixCore 9000X")
+    print("   RAM: 16GB Virtual Memory")
+    print("   GPU: ASCII Renderer 3D v2.5")
+    print()
+
+    # Magenta glowing hashtag banner with "made by MR_CRAZY"
+    banner_width = width
+    hash_line = "#" * banner_width
+    inner = "# " + centered(MAGENTA + BOLD + "made by MR_CRAZY" + RESET, banner_width - 4) + " #"
+    print(MAGENTA + hash_line + RESET)
+    print(MAGENTA + inner + RESET)
+    print(MAGENTA + hash_line + RESET)
+    print()
+    print("#" * width)
+    print("# Type a command below (help for list)         #")
+    print("#" * width)
+    print()
+
+
+def command_help():
+    print("""
+Available commands:
+---------------------------------------
+help        - show this help
+clear       - clear the screen (reprint header)
+about       - info about this system
+donut       - 3D spinning donut (ASCII)
+exit        - close the terminal
+---------------------------------------
+""")
+
+
+def command_about():
+    print("""
+PyTerminal v1.0
+Made by: MR_CRAZY
+Inspired by: neofetch / mr.robot aesthetic
+---------------------------------------
+A pseudo-terminal interface with
+custom ASCII-style GUI in Python.
+---------------------------------------
+""")
+
+
+# === DONUT ANIMATION === #
+
+screen_width = 80
+screen_height = 24
+output = [[' ' for _ in range(screen_width)] for _ in range(screen_height)]
+zbuffer = [[0 for _ in range(screen_width)] for _ in range(screen_height)]
+A = 0.0
+B = 0.0
+
+
+def render_donut_frame():
+    global A, B, output, zbuffer
+
+    output = [[' ' for _ in range(screen_width)] for _ in range(screen_height)]
+    zbuffer = [[0 for _ in range(screen_width)] for _ in range(screen_height)]
+
+    theta_spacing = 0.07
+    phi_spacing = 0.02
+    R1 = 1
+    R2 = 2
+    K2 = 5
+    K1 = screen_width * K2 * 3 / (8 * (R1 + R2))
+
+    theta = 0.0
+    while theta < 2 * math.pi:
+        theta += theta_spacing
+        cos_theta = math.cos(theta)
+        sin_theta = math.sin(theta)
+
+        phi = 0.0
+        while phi < 2 * math.pi:
+            phi += phi_spacing
+            cos_phi = math.cos(phi)
+            sin_phi = math.sin(phi)
+
+            circle_x = R2 + R1 * cos_theta
+            circle_y = R1 * sin_theta
+
+            cos_A = math.cos(A)
+            sin_A = math.sin(A)
+            cos_B = math.cos(B)
+            sin_B = math.sin(B)
+
+            x = circle_x * (cos_B * cos_phi + sin_A * sin_B * sin_phi) - circle_y * cos_A * sin_B
+            y = circle_x * (sin_B * cos_phi - sin_A * cos_B * sin_phi) + circle_y * cos_A * cos_B
+            z = K2 + cos_A * circle_x * sin_phi + circle_y * sin_A
+            ooz = 1 / z
+
+            xp = int(screen_width / 2 + K1 * ooz * x)
+            yp = int(screen_height / 2 - K1 * ooz * y)
+
+            N = (cos_phi * cos_theta * sin_B - cos_A * cos_theta * sin_phi - sin_A * sin_theta +
+                 cos_B * (cos_A * sin_theta - cos_theta * sin_A * sin_phi))
+
+            if 0 <= xp < screen_width and 0 <= yp < screen_height:
+                if ooz > zbuffer[yp][xp]:
+                    zbuffer[yp][xp] = ooz
+                    luminance_index = max(0, int(N * 8))
+                    luminance_chars = ".,-~:;=!*#$@"
+                    if luminance_index < len(luminance_chars):
+                        output[yp][xp] = luminance_chars[luminance_index]
+
+
+def command_donut():
+    global A, B
+    # Short animated intro for the donut in magenta
+    print(MAGENTA + DIM + "Starting spinning donut animation..." + RESET)
+    time.sleep(0.6)
+    # Hide cursor (ANSI)
+    print("\033[?25l", end="", flush=True)
+    try:
+        while True:
+            clear()
+            render_donut_frame()
+            # Print a small magenta header above the donut to keep aesthetic
+            top_info = MAGENTA + BOLD + centered(" SPINNING DONUT ", screen_width) + RESET
+            print(top_info)
+            for row in output:
+                print(''.join(row))
+            A += 0.04
+            B += 0.02
+            time.sleep(0.03)
+    except KeyboardInterrupt:
+        # Show cursor again
+        print("\033[?25h", end="", flush=True)
+        print("\n" + MAGENTA + "Animation stopped." + RESET)
+        time.sleep(1)
+
+
+def main():
+    print_header()
+    while True:
+        try:
+            command = input(MAGENTA + "PyTerminal> " + RESET).strip().lower()
+            if command == "help":
+                command_help()
+            elif command == "clear":
+                print_header()
+            elif command == "about":
+                command_about()
+            elif command == "donut":
+                command_donut()
+                print_header()
+            elif command == "exit":
+                print(MAGENTA + "Shutting down PyTerminal..." + RESET)
+                time.sleep(0.5)
+                break
+            else:
+                if command:
+                    print(f"Unknown command: '{command}'. Type 'help' for available commands.")
+        except KeyboardInterrupt:
+            print("\n" + MAGENTA + "Use 'exit' to quit." + RESET)
+        except EOFError:
+            break
+
+
+if __name__ == "__main__":
+    main()
