@@ -1,0 +1,560 @@
+import os
+import time
+import platform
+import math
+import shutil
+import random
+import socket
+import sys
+import ast
+from pathlib import Path
+from datetime import datetime, timedelta
+
+# Try enabling colors on Windows (fallback-safe)
+try:
+    import colorama
+    colorama.init()
+except:
+    pass
+
+# Optional psutil for richer system info
+try:
+    import psutil
+except Exception:
+    psutil = None
+
+# === COLORS ===
+MAGENTA = "\033[95m"
+BOLD = "\033[1m"
+RESET = "\033[0m"
+DIM = "\033[2m"
+GREEN = "\033[92m"
+RED = "\033[91m"
+YELLOW = "\033[93m"
+CYAN = "\033[96m"
+BLUE = "\033[94m"
+
+START_TIME = datetime.now()
+
+def clear():
+    os.system("cls" if os.name == "nt" else "clear")
+
+def centered(text, width):
+    """Center text in a given width (basic helper)."""
+    text = str(text)
+    if len(text) >= width:
+        return text
+    pad = (width - len(text)) // 2
+    return " " * pad + text + " " * (width - len(text) - pad)
+
+def boot_sequence():
+    """Fake boot sequence for atmosphere."""
+    clear()
+    width = 60
+    steps = [
+        "Initializing virtual kernel...",
+        "Loading modules: ascii_renderer, neon_ui, donut3d",
+        "Mounting /tmp ...",
+        "Checking secure enclave...",
+        "Establishing fsociety netbridge...",
+        "Starting services: notifier, animator, fileops",
+        "Verifying signatures...",
+        "Boot sequence complete."
+    ]
+    print(YELLOW + "▸ Boot sequence starting..." + RESET)
+    for s in steps:
+        print(CYAN + "[ OK ] " + RESET + s)
+        time.sleep(0.45 + random.random() * 0.2)
+    print(GREEN + "✓ System online." + RESET)
+    time.sleep(0.6)
+
+def print_header():
+    """Render the startup banner."""
+    width = 60
+    clear()
+    print(MAGENTA + "▄" * width + RESET)
+    print(MAGENTA + "█" + "░" * (width - 2) + "█" + RESET)
+    logo = [
+        "  ██████╗ ██╗   ██╗████████╗███████╗██████╗ ",
+        "  ██╔══██╗╚██╗ ██╔╝╚══██╔══╝██╔════╝██╔══██╗",
+        "  ██████╔╝ ╚████╔╝    ██║   █████╗  ██████╔╝",
+        "  ██╔═══╝   ╚██╔╝     ██║   ╚═══╝  ██╔══██╗",
+        "  ██║        ██║      ██║   ███████╗██║  ██║",
+        "  ╚═╝        ╚═╝      ╚═╝   ╚══════╝╚═╝  ╚═╝",
+    ]
+    for line in logo:
+        print(MAGENTA + "█  " + CYAN + line + MAGENTA + "  █" + RESET)
+    print(MAGENTA + "█" + "░" * (width - 2) + "█" + RESET)
+    print(MAGENTA + "▀" * width + RESET)
+    print(CYAN + centered("[ F SOCIETY v1.2 ]", width) + RESET)
+    print(YELLOW + centered("[ WAKE UP, SAMURAI ]", width) + RESET)
+    print()
+    # System info
+    print(CYAN + "╭─ SYSTEM INFO " + "─" * (width - 16) + "╮" + RESET)
+    print(f"{YELLOW}║{RESET} {RED}●{RESET} OS:   {CYAN}{platform.system()} {platform.release()}{RESET}")
+    if psutil:
+        try:
+            mem = psutil.virtual_memory()
+            cpu_count = psutil.cpu_count(logical=True)
+            print(f"{YELLOW}║{RESET} {YELLOW}●{RESET} CPU:  {CYAN}{platform.processor()} ({cpu_count} logical){RESET}")
+            print(f"{YELLOW}║{RESET} {GREEN}●{RESET} RAM:  {CYAN}{mem.total // (1024**2)} MB total{RESET}")
+        except Exception:
+            print(f"{YELLOW}║{RESET} {YELLOW}●{RESET} CPU:  {CYAN}Custom Intel MatrixCore 9000X{RESET}")
+            print(f"{YELLOW}║{RESET} {GREEN}●{RESET} RAM:  {CYAN}16GB Virtual Memory{RESET}")
+    else:
+        print(f"{YELLOW}║{RESET} {YELLOW}●{RESET} CPU:  {CYAN}Custom Intel MatrixCore 9000X{RESET}")
+        print(f"{YELLOW}║{RESET} {GREEN}●{RESET} RAM:  {CYAN}16GB Virtual Memory{RESET}")
+    print(f"{YELLOW}║{RESET} {BLUE}●{RESET} GPU:  {CYAN}ASCII Renderer 3D v2.5{RESET}")
+    print(CYAN + "╰" + "─" * (width - 1) + "╯" + RESET)
+    print()
+    banner = MAGENTA + BOLD + "MADE BY MR_CRAZY" + RESET
+    print(MAGENTA + "▓" * width + RESET)
+    print(MAGENTA + "█ " + RESET + centered(banner, width - 4) + MAGENTA + " █" + RESET)
+    print(MAGENTA + "▓" * width + RESET)
+    print()
+    print(YELLOW + "║" + RESET + " Type " + CYAN + BOLD + "help" + RESET + " for commands")
+    print(YELLOW + "║" + RESET + " Type " + CYAN + BOLD + "exit" + RESET + " to quit")
+    print()
+
+def get_downloads_path():
+    """Return user's Downloads folder path."""
+    return Path.home() / "Downloads"
+
+# === SAFE CALCULATION ===
+ALLOWED_AST_NODES = {
+    ast.Expression, ast.BinOp, ast.UnaryOp, ast.Constant, ast.Call,
+    ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.Mod, ast.UAdd, ast.USub,
+    ast.Load, ast.Tuple, ast.List, ast.BinOp, ast.FloorDiv
+}
+
+def safe_eval(expr: str):
+    """Evaluate a math expression safely using AST."""
+    try:
+        tree = ast.parse(expr, mode='eval')
+        for node in ast.walk(tree):
+            if not isinstance(node, tuple(ALLOWED_AST_NODES)):
+                raise ValueError(f"Disallowed expression: {type(node).__name__}")
+        code = compile(tree, "<string>", "eval")
+        return eval(code, {"__builtins__": {}}, {})
+    except Exception as e:
+        raise ValueError(f"Invalid expression: {e}")
+
+# === COMMANDS === #
+def command_about():
+    print(f"""
+{MAGENTA}▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓{RESET}
+{YELLOW}║{RESET}  {MAGENTA}{BOLD}F Society v1.2{RESET}                    {YELLOW}║{RESET}
+{YELLOW}║{RESET}  {CYAN}Retro-Cyberpunk Edition{RESET}              {YELLOW}║{RESET}
+{MAGENTA}▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓{RESET}
+
+{BOLD}Created by:{RESET} {CYAN}MR_CRAZY{RESET}
+{BOLD}Style:{RESET} {MAGENTA}Retro VHS{RESET} × {YELLOW}Cyberpunk 2077{RESET}
+{BOLD}Inspired by:{RESET} {DIM}neofetch / mr.robot aesthetic{RESET}
+
+{BOLD}Features:{RESET}
+  {GREEN}●{RESET} 3D ASCII animations with dynamic lighting
+  {YELLOW}●{RESET} File operations
+  {RED}●{RESET} Downloads integration
+  {BLUE}●{RESET} ANSI color UI
+  {MAGENTA}●{RESET} Retro design
+
+{CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{RESET}
+{YELLOW}[ STATUS: OPERATIONAL ]{RESET}
+{CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{RESET}
+""")
+
+# === FILE OPERATIONS === #
+def command_add_folder(name):
+    if not name:
+        print(RED + "✗ Missing folder name!" + RESET)
+        return
+    path = get_downloads_path() / name
+    try:
+        path.mkdir(exist_ok=False)
+        print(GREEN + f"✓ Folder created: {path}" + RESET)
+    except FileExistsError:
+        print(YELLOW + f"⚠ Folder already exists: {path}" + RESET)
+    except Exception as e:
+        print(RED + f"✗ Error: {e}" + RESET)
+
+def command_add_file(name):
+    command_add_folder(name)
+
+def command_write_file(name):
+    if not name:
+        print(RED + "✗ Missing filename!" + RESET)
+        return
+    path = get_downloads_path() / name
+    print(MAGENTA + "▸ Enter text (type 'END' to finish):" + RESET)
+    lines = []
+    while True:
+        try:
+            line = input(YELLOW + "│ " + RESET)
+            if line.strip().upper() == "END":
+                break
+            lines.append(line)
+        except KeyboardInterrupt:
+            print("\n" + YELLOW + "⚠ Writing cancelled." + RESET)
+            return
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+        print(GREEN + f"✓ File saved: {path}" + RESET)
+    except Exception as e:
+        print(RED + f"✗ Error writing file: {e}" + RESET)
+
+def command_read_file(name):
+    if not name:
+        print(RED + "✗ Missing filename!" + RESET)
+        return
+    path = get_downloads_path() / name
+    if not path.exists():
+        print(RED + f"✗ File not found: {path}" + RESET)
+        return
+    print(MAGENTA + "▓" * 50 + RESET)
+    print(f"{YELLOW}║ {BOLD}Content of: {name}{RESET}")
+    print(MAGENTA + "▓" * 50 + RESET)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            print(f.read())
+    except Exception as e:
+        print(RED + f"✗ Read error: {e}" + RESET)
+    print(MAGENTA + "▓" * 50 + RESET)
+
+def command_delete_file(name):
+    if not name:
+        print(RED + "✗ Missing filename!" + RESET)
+        return
+    path = get_downloads_path() / name
+    if not path.exists():
+        print(RED + f"✗ File not found: {path}" + RESET)
+        return
+    confirm = input(YELLOW + f"⚠ Delete '{name}'? (yes/no): " + RESET).strip().lower()
+    if confirm == "yes":
+        try:
+            path.unlink()
+            print(GREEN + f"✓ Deleted: {path}" + RESET)
+        except Exception as e:
+            print(RED + f"✗ Error: {e}" + RESET)
+    else:
+        print(CYAN + "▸ Cancelled." + RESET)
+
+# === DONUT ANIMATION === #
+screen_w, screen_h = 80, 24
+A = B = 0.0
+
+def frange(start, stop, step):
+    while start < stop:
+        yield start
+        start += step
+
+def render_donut_frame():
+    """Render one frame of the spinning donut."""
+    global A, B
+    out = [[" " for _ in range(screen_w)] for _ in range(screen_h)]
+    zbuf = [[0] * screen_w for _ in range(screen_h)]
+
+    R1, R2, K2 = 1, 2, 5
+    K1 = screen_w * K2 * 3 / (8 * (R1 + R2))
+
+    for theta in frange(0, 2 * math.pi, 0.07):
+        for phi in frange(0, 2 * math.pi, 0.02):
+            ct, st = math.cos(theta), math.sin(theta)
+            cp, sp = math.cos(phi), math.sin(phi)
+            circle_x = R2 + R1 * ct
+            circle_y = R1 * st
+
+            cosA, sinA = math.cos(A), math.sin(A)
+            cosB, sinB = math.cos(B), math.sin(B)
+
+            x = circle_x * (cosB * cp + sinA * sinB * sp) - circle_y * cosA * sinB
+            y = circle_x * (sinB * cp - sinA * cosB * sp) + circle_y * cosA * cosB
+            z = K2 + cosA * circle_x * sp + circle_y * sinA
+            ooz = 1 / z
+
+            xp = int(screen_w / 2 + K1 * ooz * x)
+            yp = int(screen_h / 2 - K1 * ooz * y)
+
+            N = (cp * ct * sinB - cosA * ct * sp - sinA * st +
+                 cosB * (cosA * st - ct * sinA * sp))
+
+            if 0 <= xp < screen_w and 0 <= yp < screen_h and ooz > zbuf[yp][xp]:
+                zbuf[yp][xp] = ooz
+                lum_index = max(0, int(N * 8))
+                chars = ".,-~:;=!*#$@"
+                if lum_index < len(chars):
+                    out[yp][xp] = chars[lum_index]
+    return out
+
+def command_donut():
+    global A, B
+    print(MAGENTA + "▸ Starting donut animation..." + RESET)
+    time.sleep(0.5)
+    print("\033[?25l", end="")  # Hide cursor
+    try:
+        while True:
+            clear()
+            frame = render_donut_frame()
+            print(CYAN + "╔" + "═" * (screen_w - 2) + "╗" + RESET)
+            print(CYAN + "║" + centered(MAGENTA + BOLD + " 3D SPINNING DONUT " + RESET, screen_w - 2) + CYAN + "║" + RESET)
+            print(CYAN + "╚" + "═" * (screen_w - 2) + "╝" + RESET)
+            for row in frame:
+                print("".join(row))
+            A += 0.04
+            B += 0.02
+            time.sleep(0.03)
+    except KeyboardInterrupt:
+        print("\033[?25h", end="")  # Restore cursor
+        print("\n" + YELLOW + "▸ Animation stopped." + RESET)
+        time.sleep(0.5)
+
+# === FORTUNE (Mr. Robot quotes) === #
+MR_ROBOT_QUOTES = [
+    "Sometimes I dream that I'm an actual human being. Then I wake up and I'm reminded that I'm a machine.",
+    "You’re never really alive unless you’re in love. Or dead. One of the two.",
+    "We’re all just looking for someone to break our fall.",
+    "I am not your savior. I am not your enemy. I am your mirror.",
+    "Control is an illusion. The only thing you can control is how you react.",
+    "Everything you see, everything you hear, is a projection of your own consciousness.",
+    "I just want to be able to look at myself in the mirror again.",
+    "It's going to be okay. You just have to be okay with what you've done.",
+    "Power doesn't always look like power."
+]
+
+def command_fortune():
+    print(MAGENTA + "▸ Mr. Robot fortune:" + RESET)
+    print(CYAN + random.choice(MR_ROBOT_QUOTES) + RESET)
+
+# === HACK SIMULATION === #
+def fake_ip():
+    return ".".join(str(random.randint(1, 254)) for _ in range(4))
+
+def command_hack_sim():
+    print(MAGENTA + "▸ Starting hack simulation..." + RESET)
+    target = fake_ip()
+    print(YELLOW + f"Connecting to target {target}..." + RESET)
+    stages = [
+        "Bypassing firewall",
+        "Cracking credentials",
+        "Exploring network",
+        "Escalating privileges",
+        "Extracting data",
+        "Covering tracks"
+    ]
+    for stage in stages:
+        for i in range(0, 101, random.randint(8, 22)):
+            bar = "[" + "#" * (i // 5) + " " * (20 - (i // 5)) + "]"
+            print(CYAN + f"{stage:25} {bar} {i:3}%\r" + RESET, end="")
+            time.sleep(0.08 + random.random() * 0.06)
+        print()
+        time.sleep(0.15)
+    captures = random.randint(1, 6)
+    print(GREEN + f"✓ Extraction complete. Found {captures} file(s):" + RESET)
+    for i in range(captures):
+        fn = f"/home/{random.choice(['root','admin','user'])}/secrets_{random.randint(100,999)}.dat"
+        print(DIM + f" - {fn}" + RESET)
+    print(YELLOW + "▸ Leak simulation complete. (This is only a simulation.)" + RESET)
+
+# === MATRIX RAIN === #
+def command_matrix(duration=5):
+    try:
+        duration = int(duration)
+    except:
+        duration = 5
+    chars = "abcdefghijklmnopqrstuvwxyz0123456789@#$%&*"
+    width = 60
+    start = time.time()
+    print(MAGENTA + "▸ Matrix rain (press Ctrl+C to stop)..." + RESET)
+    try:
+        while time.time() - start < duration:
+            line = "".join(random.choice(chars) if random.random() < 0.02 else " " for _ in range(width))
+            print(GREEN + line + RESET)
+            time.sleep(0.08)
+    except KeyboardInterrupt:
+        pass
+    print(YELLOW + "▸ Matrix stopped." + RESET)
+
+# === SYSTEM UTILITIES === #
+def command_calc(expr):
+    if not expr:
+        print(RED + "✗ Usage: calc <expression>" + RESET)
+        return
+    try:
+        res = safe_eval(expr)
+        print(GREEN + f"= {res}" + RESET)
+    except Exception as e:
+        print(RED + f"✗ {e}" + RESET)
+
+def command_sysinfo():
+    print(MAGENTA + "▸ System information:" + RESET)
+    print(f"{YELLOW}OS:{RESET} {platform.system()} {platform.release()}")
+    if psutil:
+        try:
+            print(f"{YELLOW}CPU:{RESET} {psutil.cpu_percent(interval=0.5)}% (avg)")
+            mem = psutil.virtual_memory()
+            print(f"{YELLOW}RAM:{RESET} {mem.percent}% used ({mem.total // (1024**2)} MB)")
+            du = shutil.disk_usage(Path.home())
+            print(f"{YELLOW}Disk:{RESET} {du.used // (1024**3)}GB used / {du.total // (1024**3)}GB total")
+        except Exception as e:
+            print(DIM + f"(Detailed psutil info failed: {e})" + RESET)
+    else:
+        print(DIM + "(Install psutil for richer info: pip install psutil)" + RESET)
+
+def command_uptime():
+    delta = datetime.now() - START_TIME
+    hours, remainder = divmod(int(delta.total_seconds()), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    print(MAGENTA + "▸ Uptime:" + RESET + f" {hours}h {minutes}m {seconds}s (since {START_TIME.strftime('%Y-%m-%d %H:%M:%S')})")
+
+def command_battery():
+    if psutil:
+        try:
+            batt = psutil.sensors_battery()
+            if batt is None:
+                print(YELLOW + "⚠ Battery info not available." + RESET)
+                return
+            plugged = "charging" if batt.power_plugged else "on battery"
+            print(MAGENTA + "▸ Battery:" + RESET + f" {batt.percent}% ({plugged})")
+        except Exception as e:
+            print(RED + f"✗ Battery query failed: {e}" + RESET)
+    else:
+        print(DIM + "(Install psutil for battery info: pip install psutil)" + RESET)
+
+def command_netinfo():
+    print(MAGENTA + "▸ Network info:" + RESET)
+    try:
+        hostname = socket.gethostname()
+        ip = socket.gethostbyname(hostname)
+        print(f"{YELLOW}Hostname:{RESET} {hostname}")
+        print(f"{YELLOW}Local IP:{RESET} {ip}")
+        if psutil:
+            addrs = psutil.net_if_addrs()
+            for iface, infos in addrs.items():
+                for a in infos:
+                    if a.family == socket.AF_INET:
+                        print(DIM + f" - {iface}: {a.address}" + RESET)
+        else:
+            print(DIM + "(Install psutil for detailed interfaces: pip install psutil)" + RESET)
+    except Exception as e:
+        print(RED + f"✗ Netinfo failed: {e}" + RESET)
+
+# === HELP === #
+COMMAND_CATEGORIES = {
+    "3D ANIMATIONS": [("donut", "3D spinning donut animation")],
+    "FILE OPERATIONS": [
+        ("list_files", "List files in Downloads"),
+        ("read_file <name>", "Read a file from Downloads"),
+        ("write_file <name>", "Write a file to Downloads"),
+        ("add_folder <name>", "Create folder in Downloads"),
+        ("rename_file <old> <new>", "Rename file in Downloads"),
+        ("move_file <name> <folder>", "Move file into folder in Downloads"),
+        ("copy_file <name> <new_name>", "Copy file in Downloads"),
+        ("delete_file <name>", "Delete a file from Downloads"),
+        ("open_file <name>", "Open file with default app"),
+    ],
+    "SYSTEM & INFO": [
+        ("sysinfo", "Display system info"),
+        ("uptime", "Show program uptime"),
+        ("battery", "Show battery status"),
+        ("netinfo", "Network information"),
+    ],
+    "UTILITIES": [
+        ("boot", "Fake boot sequence"),
+        ("calc <expr>", "Evaluate math expression"),
+        ("matrix [seconds]", "Matrix rain (visual)"),
+    ],
+    "FUN & SIM": [
+        ("fortune", "Random Mr. Robot quote"),
+        ("hack_sim", "Fake hack simulation"),
+    ],
+    "GENERAL": [
+        ("about", "About this program"),
+        ("help", "Show this help"),
+        ("exit", "Quit program")
+    ]
+}
+
+def command_help():
+    print(MAGENTA + "▸ Available commands (categories):" + RESET)
+    for cat, items in COMMAND_CATEGORIES.items():
+        print(CYAN + f"\n=== {cat} ===" + RESET)
+        for cmd, desc in items:
+            print(YELLOW + f"  {cmd:<25}" + RESET + f" {DIM}{desc}{RESET}")
+    print()
+    print(DIM + "Note: use arguments like 'read_file secret.txt'." + RESET)
+
+# === PARSING & MAIN LOOP === #
+def parse_input(cmdline: str):
+    import shlex
+    try:
+        parts = shlex.split(cmdline)
+    except:
+        parts = cmdline.strip().split()
+    if not parts:
+        return "", []
+    return parts[0].lower(), parts[1:]
+
+def main():
+    boot_sequence()
+    print_header()
+    while True:
+        try:
+            cmdline = input(YELLOW + "V@F_Society:~$ " + RESET).strip()
+            if not cmdline:
+                continue
+            c, args = parse_input(cmdline)
+            if c in ("help", "?"):
+                command_help()
+            elif c == "clear":
+                print_header()
+            elif c == "about":
+                command_about()
+            elif c == "donut":
+                command_donut()
+                print_header()
+            elif c == "add_folder":
+                command_add_folder(" ".join(args))
+            elif c == "add_file":
+                command_add_file(" ".join(args))
+            elif c == "write_file":
+                command_write_file(" ".join(args))
+            elif c == "read_file":
+                command_read_file(" ".join(args))
+            elif c == "delete_file":
+                command_delete_file(" ".join(args))
+            elif c == "fortune":
+                command_fortune()
+            elif c == "hack_sim":
+                command_hack_sim()
+            elif c == "boot":
+                boot_sequence()
+                print_header()
+            elif c == "calc":
+                command_calc(" ".join(args))
+            elif c == "sysinfo":
+                command_sysinfo()
+            elif c == "uptime":
+                command_uptime()
+            elif c == "battery":
+                command_battery()
+            elif c == "netinfo":
+                command_netinfo()
+            elif c == "matrix":
+                secs = args[0] if args else "5"
+                command_matrix(secs)
+            elif c == "exit":
+                print(MAGENTA + "▓" * 60 + RESET)
+                print(YELLOW + "║ " + MAGENTA + BOLD + "Shutting down F Society..." + RESET)
+                print(MAGENTA + "▓" * 60 + RESET)
+                time.sleep(0.5)
+                break
+            else:
+                print(RED + f"✗ Unknown command: {c}" + RESET)
+        except KeyboardInterrupt:
+            print("\n" + YELLOW + "▸ Use 'exit' to quit." + RESET)
+        except EOFError:
+            break
+
+if __name__ == "__main__":
+    main()
+
